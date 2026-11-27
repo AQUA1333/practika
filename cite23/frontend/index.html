@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Простой Магазин</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; }
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; }
+        .card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
+        button { background: #2563eb; color: white; border: none; padding: 8px 14px; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #1d4ed8; }
+        .cart { background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+    <h1>🛒 Магазин электроники</h1>
+    <div id="products" class="grid">Загрузка товаров...</div>
+
+    <div class="cart">
+        <h2>Корзина (<span id="count">0</span>)</h2>
+        <ul id="cart-list"></ul>
+        <p><strong>Итого: <span id="total">0</span> ₽</strong></p>
+        <button onclick="checkout()">Оформить заказ</button>
+    </div>
+
+    <script>
+        // Динамический адрес: подставляет IP или домен вашего Proxmox-контейнера
+        const host = window.location.hostname || 'localhost';
+        const API_URL = `http://${host}:8000/api`;
+        
+        let products = [];
+        let cart = [];
+
+        async function loadProducts() {
+            try {
+                const res = await fetch(`${API_URL}/products`);
+                products = await res.json();
+                const container = document.getElementById('products');
+                container.innerHTML = products.map(p => `
+                    <div class="card">
+                        <h3>${p.name}</h3>
+                        <p>Цена: <strong>${p.price} ₽</strong></p>
+                        <button onclick="addToCart(${p.id})">В корзину</button>
+                    </div>
+                `).join('');
+            } catch (err) {
+                document.getElementById('products').innerText = 'Ошибка загрузки товаров. Проверьте, запущен ли бэкенд на порту 8000.';
+            }
+        }
+
+        function addToCart(id) {
+            const item = products.find(p => p.id === id);
+            cart.push(item);
+            renderCart();
+        }
+
+        function renderCart() {
+            document.getElementById('count').innerText = cart.length;
+            document.getElementById('cart-list').innerHTML = cart.map(i => `<li>${i.name} — ${i.price} ₽</li>`).join('');
+            const total = cart.reduce((sum, i) => sum + i.price, 0);
+            document.getElementById('total').innerText = total;
+        }
+
+        async function checkout() {
+            if (!cart.length) return alert('Корзина пуста!');
+            const res = await fetch(`${API_URL}/order`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: cart.map(i => i.id) })
+            });
+            const data = await res.json();
+            alert(data.message);
+            cart = [];
+            renderCart();
+        }
+
+        loadProducts();
+    </script>
+</body>
+</html>
